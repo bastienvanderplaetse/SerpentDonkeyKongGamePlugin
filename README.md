@@ -23,3 +23,4 @@ This project requires the usage of the [SerpentAI Framework](https://github.com/
 * Change the value of the ```<title>``` tag by the title of the Bizhawk window.
 * Change the value of the ```<emulator>``` tag by the path to the Bizhawk emulator.
 * Change the value of the ```<game>``` tag by the path to the Donkey Kong ROM.
+* When launching the GamePlugin, an error can be raised. In this case, just wait that Bizhawk has opened. The emulator takes a while before opening and the GamePlugin raises an error explaining that the Bizhawk window can not be focused. That is normal.
