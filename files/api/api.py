@@ -7,6 +7,8 @@ from skimage import io
 
 import numpy as np
 
+import math
+
 from .navigation_game_fsm import NavigationGameFSM
 from fysom import Fysom
 
@@ -32,6 +34,16 @@ class DonkeyKongAPI(GameAPI):
 
         self.sprite_locator = SpriteLocator()
 
+        self.ladders_positions = dict()
+        self.ladders_positions[0] = [453, 10000]
+        self.ladders_positions[1] = [102, 249]
+        self.ladders_positions[2] = [285, 452]
+        self.ladders_positions[3] = [104, 194]
+        self.ladders_positions[4] = [452, 10000]
+        self.ladders_positions[5] = [324, 10000]
+
+        self.ladders_thresholds = [384, 328, 268, 208, 148, 88]
+
 
     def _prepare_sprites(self):
         # Death Sprite
@@ -49,6 +61,7 @@ class DonkeyKongAPI(GameAPI):
         for i in range(2,30):
             image = io.imread(path.format(i))
             self.mario_sprite.append_image_data(image[...,np.newaxis])
+
 
         # Falling Barrels Sprite
         path = './plugins/SerpentDonkeyKongGamePlugin/files/data/sprites/falling_barrel_{}.png'
@@ -97,6 +110,60 @@ class DonkeyKongAPI(GameAPI):
             location = self.sprite_locator.locate(sprite=self.splash_screen, game_frame=game_frame)
             if (location != None):
                 self.navigationGameFSM.run()
+
+    def get_distance_vector(self, game_frame):
+        mario_location = self.sprite_locator.locate(sprite=self.mario_sprite, game_frame=game_frame)
+        if (mario_location != None):
+            distances = self._distance_to_moving_entities(mario_location, game_frame)
+            distances = np.concatenate((distances, self._distance_ladders(mario_location[1], mario_location[0])))
+            return distances
+
+    def _distance_to_moving_entities(self, mario_location, game_frame):
+        moving_entities = self._get_moving_entities(game_frame)
+        distances = np.zeros(20)
+        cpt = 0
+
+        for entity in moving_entities:
+            if (cpt < 20):
+                entity_posX = (entity[1] + entity[3])/2
+                mario_posX = (mario_location[1] + mario_location[3])/2
+                distances[cpt] = abs(entity_posX - mario_posX)
+                entity_posY = (entity[0] + entity[2])/2
+                mario_posY = (mario_location[0] + mario_location[2])/2
+                distances[cpt+1] = abs(entity_posY - mario_posY)
+                cpt = cpt + 2
+
+        for i in range(cpt, 20):
+            distances[i] = 10000
+
+        return distances
+
+    def _distance_ladders(self, mario_posX, mario_posY):
+        distances = np.zeros(2)
+        ladders = self._get_ladders(mario_posY)
+        cpt = 0
+        for ladder in ladders:
+            distances[cpt] = abs(mario_posX-ladder)
+            cpt = cpt + 1
+
+        return distances
+
+    def _get_ladders(self, mario_posY):
+        for i in range(5,-1,-1):
+            if (mario_posY <= self.ladders_thresholds[i]):
+                return self.ladders_positions[i]
+        return self.ladders_positions[0]
+
+    def _get_moving_entities(self, game_frame):
+        moving = []
+        locations = self._multiple_locate(sprite=self.rolling_barrel_sprite, game_frame=game_frame)
+        moving = moving + locations
+        locations = self._multiple_locate(sprite=self.falling_barrel_sprite, game_frame=game_frame)
+        moving = moving + locations
+        locations = self._multiple_locate(sprite=self.flammy_sprite, game_frame=game_frame)
+        moving = moving + locations
+
+        return moving
 
     def get_mario_frame(self, game_frame):
         location = self.sprite_locator.locate(sprite=self.mario_sprite, game_frame=game_frame)
@@ -217,7 +284,7 @@ class DonkeyKongAPI(GameAPI):
         temp = []
         epurated = []
         for i in range(0,len(locations)):
-            if(not locations[i][0] in temp):
+            if(not locations[i][0] in temp and not locations[i][0]-1 in temp and not locations[i][0]+1 in temp):
                 temp.append(locations[i][0])
                 epurated.append(locations[i])
         return epurated
