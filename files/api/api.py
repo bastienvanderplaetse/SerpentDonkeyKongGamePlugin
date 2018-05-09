@@ -183,7 +183,6 @@ class DonkeyKongAPI(GameAPI):
         return (reduced_frame, units_array)
 
     def _projection(self, game_frame, global_mario_positions):
-        #simplified_frame = self._simplify_frame(game_frame)
         mario_location = self.sprite_locator.locate(sprite=self.mario_sprite, game_frame=game_frame)
         moving_entities = self._get_moving_entities(game_frame)
 
@@ -193,18 +192,19 @@ class DonkeyKongAPI(GameAPI):
         ladders = self._get_ladders(global_mario_positions[0])
         for ladder in ladders:
             if (abs(ladder - global_mario_positions[1]) <= self.LADDER_DELTA):
-                units_array[self.n_HEIGHT][self.n_WIDTH] = self.LADDER
-            # elif (ladder < global_mario_positions[1]):
-            #     # ladder on left
-            #     pos_ladder = int((global_mario_positions[1]-ladder)/self.WIDTH)+1
-            # else :
-            #     # ladder on right
-            #     pos_ladder = int((ladder - global_mario_positions[1])/self.WIDTH)
-            #     if (pos_ladder == 0):
-            #         pos_ladder = 1
+                pos_ladder = self.n_WIDTH
+            elif (ladder < global_mario_positions[1]):
+                # ladder on left
+                pos_ladder = self.n_WIDTH - (int((global_mario_positions[1]-ladder)/self.WIDTH)+1)
+            else :
+                # ladder on right
+                pos_ladder = int((ladder - global_mario_positions[1])/self.WIDTH)
+                if (pos_ladder == 0):
+                    pos_ladder = 1
+                pos_ladder = pos_ladder + self.n_WIDTH
 
-            # if(pos_ladder >= 0 and pos_ladder <= (2*self.n_WIDTH)):
-            #     units_array[self.n_HEIGHT][pos_ladder] = self.LADDER
+            if(pos_ladder >= 0 and pos_ladder <= (2*self.n_WIDTH)):
+                units_array[self.n_HEIGHT][pos_ladder] = self.LADDER
 
         print(mario_location)
         for entity in moving_entities:
