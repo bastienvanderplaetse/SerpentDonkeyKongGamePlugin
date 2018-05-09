@@ -28,6 +28,9 @@ class DonkeyKongAPI(GameAPI):
         self.n_HEIGHT = 2
 
         self.MARIO = 1
+        self.MOVING_ENTITY = 2
+        self.LADDER = 3
+        self.LADDER_DELTA = 5
         self.ROLLING_BARREL = 2
         self.FALLING_BARREL = 3
         self.FLAMMY = 4
@@ -75,7 +78,7 @@ class DonkeyKongAPI(GameAPI):
         path = './plugins/SerpentDonkeyKongGamePlugin/files/data/sprites/rolling_barrel_{}.png'
         image = io.imread(path.format(1))
         self.rolling_barrel_sprite = Sprite("ROLLING", image_data=image[...,np.newaxis])
-        for i in range(2,3):
+        for i in range(2,5):
             image = io.imread(path.format(i))
             self.rolling_barrel_sprite.append_image_data(image[...,np.newaxis])
 
@@ -158,12 +161,77 @@ class DonkeyKongAPI(GameAPI):
         moving = []
         locations = self._multiple_locate(sprite=self.rolling_barrel_sprite, game_frame=game_frame)
         moving = moving + locations
+        print(len(moving))
         locations = self._multiple_locate(sprite=self.falling_barrel_sprite, game_frame=game_frame)
         moving = moving + locations
+        print(len(moving))
         locations = self._multiple_locate(sprite=self.flammy_sprite, game_frame=game_frame)
         moving = moving + locations
+        print(len(moving))
 
         return moving
+
+    def get_projection_matrix(self, game_frame):
+        location = self.sprite_locator.locate(sprite=self.mario_sprite, game_frame=game_frame)
+        reduced_frame = None
+        units_array = None
+        if (location != None):
+            temp = game_frame.frame[location[0]-self.HEIGHT*self.n_HEIGHT:location[2],location[1]-self.WIDTH*self.n_WIDTH:location[3]+self.WIDTH*self.n_WIDTH]
+            reduced_frame = GameFrame(temp)
+            units_array = self._projection(reduced_frame, location)
+
+        return (reduced_frame, units_array)
+
+    def _projection(self, game_frame, global_mario_positions):
+        #simplified_frame = self._simplify_frame(game_frame)
+        mario_location = self.sprite_locator.locate(sprite=self.mario_sprite, game_frame=game_frame)
+        moving_entities = self._get_moving_entities(game_frame)
+
+        units_array = np.zeros((1+self.n_HEIGHT, 1+2*self.n_WIDTH))
+        units_array[self.n_HEIGHT][self.n_WIDTH] = self.MARIO
+
+        ladders = self._get_ladders(global_mario_positions[0])
+        for ladder in ladders:
+            if (abs(ladder - global_mario_positions[1]) <= self.LADDER_DELTA):
+                units_array[self.n_HEIGHT][self.n_WIDTH] = self.LADDER
+            # elif (ladder < global_mario_positions[1]):
+            #     # ladder on left
+            #     pos_ladder = int((global_mario_positions[1]-ladder)/self.WIDTH)+1
+            # else :
+            #     # ladder on right
+            #     pos_ladder = int((ladder - global_mario_positions[1])/self.WIDTH)
+            #     if (pos_ladder == 0):
+            #         pos_ladder = 1
+
+            # if(pos_ladder >= 0 and pos_ladder <= (2*self.n_WIDTH)):
+            #     units_array[self.n_HEIGHT][pos_ladder] = self.LADDER
+
+        print(mario_location)
+        for entity in moving_entities:
+            print(entity)
+            if (entity[3] <= mario_location[1]):
+                # left
+                posX = entity[3] 
+            elif (entity[1] >= mario_location[3]):
+                # right
+                posX = entity[1]
+            else :
+                # centered on Mario
+                posX = self.n_WIDTH*self.WIDTH
+
+            if (entity[0] >= mario_location[2]):
+                # bottom
+                posY = entity[0]
+            elif (entity[2] <= mario_location[0]):
+                # up
+                posY = entity[2]
+            else:
+                # centered on Mario
+                posY = self.n_HEIGHT*self.HEIGHT
+
+            units_array[int(posY/self.HEIGHT)][int(posX/self.WIDTH)] = self.MOVING_ENTITY
+
+        return units_array
 
     def get_mario_frame(self, game_frame):
         location = self.sprite_locator.locate(sprite=self.mario_sprite, game_frame=game_frame)
