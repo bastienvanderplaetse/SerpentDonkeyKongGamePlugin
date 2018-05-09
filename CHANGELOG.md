@@ -1,3 +1,13 @@
+## Snapshot 18w19a
+
+### Added
+
+* Projection matrix to represent the positions of the game elements around Mario
+
+###
+
+* Sprite for rolling barrels
+
 ## Snapshot 18w18b
 
 ### Added
