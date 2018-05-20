@@ -1,0 +1,8 @@
+<?xml version="1.0" ?>
+    <config>
+      <title>NES - Donkey Kong (W) (PRG1) [T+Fre_Lyssal]</title>
+      <path>
+        <emulator>C:/Users/Bastien/Documents/Jeux/BizHawk/EmuHawk.exe</emulator>
+        <game>C:/Users/Bastien/Documents/Jeux/BizHawk/Donkey_Kong.nes</game>
+      </path>
+    </config>

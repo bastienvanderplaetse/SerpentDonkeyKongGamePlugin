@@ -13,7 +13,7 @@ class SerpentDonkeyKongGame(Game, metaclass=Singleton):
         kwargs["platform"] = "executable"
 
         try:
-            doc = minidom.parse('donkeykong_config.xml')
+            doc = minidom.parse('plugins/SerpentDonkeyKongGamePlugin/donkeykong_config.xml')
 
             kwargs["window_name"] = doc.getElementsByTagName("title")[0].firstChild.nodeValue
 
@@ -51,7 +51,7 @@ class SerpentDonkeyKongGame(Game, metaclass=Singleton):
 
         doc.appendChild(config)
 
-        doc.writexml(open('donkeykong_config.xml', 'w'), indent="    ", addindent="  ", newl='\n')
+        doc.writexml(open('plugins/SerpentDonkeyKongGamePlugin/donkeykong_config.xml', 'w'), indent="    ", addindent="  ", newl='\n')
 
         print("IMPORTANT : donkeykong_config.xml file created. Please change the default values to use the API.")
 

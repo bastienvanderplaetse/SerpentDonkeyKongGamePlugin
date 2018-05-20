@@ -4,16 +4,19 @@ class NavigationGameFSM(FysomGlobalMixin, object):
 
 	def onNext(e):
 		e.fsm.life = 3
-		print("Life : " + str(e.fsm.life))
 
 	GSM = FysomGlobal(
 			initial = 'not_running',
 			events = [
 				{
 					'name': 'run',
-					'src': ['not_running', 'lost'],
-					'dst': 'menu'
+					'src': ['not_running', 'lost', 'has_won'],
+					'dst': 'menu',
+					'cond': [
+						'tautology', {True: 'reset_life', 'else': 'menu'}
+					]
 				},
+				('win', 'playing', 'has_won'),
 				('next', 'menu', 'black_screen'),
 				('play', 'black_screen', 'playing'),
 				('die', 'playing', 'dead'),
@@ -31,13 +34,18 @@ class NavigationGameFSM(FysomGlobalMixin, object):
 
 	GSM.life = 3
 
+	def tautology(self, event):
+		return True
+
+	def reset_life(self, event):
+		event.fsm.life = 3
+		return True
+
 	def end_party(self, event):
 		event.fsm.life = event.fsm.life - 1
-		print("end_party : " + str(event.fsm.life))
 		return True
 
 	def is_lost(self, event):
-		print("is_lost : " + str(event.fsm.life))
 		if (event.fsm.life == 0):
 			event.fsm.life = 3
 			return True
