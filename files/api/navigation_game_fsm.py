@@ -10,7 +10,7 @@ class NavigationGameFSM(FysomGlobalMixin, object):
 			events = [
 				{
 					'name': 'run',
-					'src': ['not_running', 'lost', 'has_won'],
+					'src': ['not_running', 'lost', 'has_won', 'playing'],
 					'dst': 'menu',
 					'cond': [
 						'tautology', {True: 'reset_life', 'else': 'menu'}

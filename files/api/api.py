@@ -451,7 +451,24 @@ class DonkeyKongAPI(GameAPI):
         location = self.sprite_locator.locate(sprite=self.death_sprite, game_frame=game_frame)
         pos = [0,0]
         if(location != None):
-            pos[1] = self.game.window_geometry['height'] - location[0]
+            level = self._get_level(location[0])
+            pos[1] = 1000 * level
+            ladders = self._get_ladders(location[0])
+            minimum_distance = abs(ladders[0]-((location[3]+location[1])/2))
+            for ladder in ladders :
+                distance = abs(ladder-((location[3]+location[1])/2))
+                if (distance < minimum_distance):
+                    minimum_distance = distance
+
+            pos[0] = minimum_distance
+
+        return pos
+
+    def get_final_position(self, location):
+        pos = [0,0]
+        if(location != None):
+            level = self._get_level(location[0])
+            pos[1] = 1000 * level
             ladders = self._get_ladders(location[0])
             minimum_distance = abs(ladders[0]-((location[3]+location[1])/2))
             for ladder in ladders :
@@ -488,6 +505,9 @@ class DonkeyKongAPI(GameAPI):
 
     def replay(self):
         self.navigationGameFSM.replay()
+
+    def win(self):
+        self.navigationGameFSM.win()
 
 
 
