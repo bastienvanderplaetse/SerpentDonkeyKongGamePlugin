@@ -8,6 +8,7 @@ from skimage import io
 import numpy as np
 
 import math
+import time
 
 from .navigation_game_fsm import NavigationGameFSM
 from fysom import Fysom
@@ -31,7 +32,7 @@ class DonkeyKongAPI(GameAPI):
         self.MARIO = 1
         self.MOVING_ENTITY = 2
         self.LADDER = 3
-        self.LADDER_DELTA = 5
+        self.LADDER_DELTA = 18
         self.ROLLING_BARREL = 2
         self.FALLING_BARREL = 3
         self.FLAMMY = 4
@@ -59,11 +60,24 @@ class DonkeyKongAPI(GameAPI):
         self.on_ladders[(4,452)] = [133, 88]
         self.on_ladders[(5,324)] = [81, 32]
 
+        self.level_distances = dict()
+        self.level_distances[0] = 453
+        self.level_distances[1] = 453-249
+        self.level_distances[2] = 452-102
+        self.level_distances[3] = 452-104
+        self.level_distances[4] = 452-104
+        self.level_distances[5] = 452-324
+
+        self.last_stage = 0
+        self.max_stage = 0
+        self.last_change_stage = 0
+        self.useless_actions = 0
+
         self.level_direction = dict()
-        orientation = 0
+        orientation = 1
         for i in range(6):
             self.level_direction[i] = orientation
-            orientation = (orientation + 1)%2
+            orientation = orientation * (-1)
 
         self.ladders_thresholds = [384, 328, 268, 208, 148, 88]
 
@@ -165,8 +179,17 @@ class DonkeyKongAPI(GameAPI):
                 if (locations[0] != None):
                     self.navigationGameFSM.play()
         elif (self.navigationGameFSM.current == "playing"):
-            locations[0] = self.sprite_locator.locate(sprite=self.mario_sprite, game_frame=game_frame)
-            locations[1] = self.sprite_locator.locate(sprite=self.death_sprite, game_frame=game_frame)
+            loc = self._multiple_locate(sprite=self.mario_sprite, game_frame=game_frame, forced=True)
+            if(len(loc) != 0):
+                locations[0] = loc[0]
+                locations[1] = None
+            else :
+                locations[0] = None
+                loc = self._multiple_locate(sprite=self.death_sprite, game_frame=game_frame, forced=True)
+                if(len(loc) != 0):
+                    locations[1] = loc[0]
+            # locations[0] = self.sprite_locator.locate(sprite=self.mario_sprite, game_frame=game_frame)
+            # locations[1] = self.sprite_locator.locate(sprite=self.death_sprite, game_frame=game_frame)
 
             if (locations[0] != None):
                 has_mario = True
@@ -177,6 +200,9 @@ class DonkeyKongAPI(GameAPI):
 
             if (locations[0] != None and locations[1] == None and locations[0][0] <= self.LEVEL_WIN_HEIGHT):
                 self.navigationGameFSM.win()
+
+            if (self.last_change_stage == 0):
+                self.last_change_stage = time.time()
 
         elif (self.navigationGameFSM.current == "lost" or self.navigationGameFSM.current == "has_won"):
             location = self.sprite_locator.locate(sprite=self.splash_screen, game_frame=game_frame)
@@ -226,16 +252,26 @@ class DonkeyKongAPI(GameAPI):
         return distances
 
     def _get_ladders(self, mario_posY):
-        for i in range(5,-1,-1):
-            if (mario_posY <= self.ladders_thresholds[i]):
-                return self.ladders_positions[i]
-        return self.ladders_positions[0]
+        level = self._get_level(mario_posY)
+        return self.ladders_positions[level]
+        # for i in range(5,-1,-1):
+        #     if (mario_posY <= self.ladders_thresholds[i]):
+        #         return self.ladders_positions[i]
+        # return self.ladders_positions[0]
 
     def _get_level(self, mario_posY):
+        stage = 0
         for i in range(5,-1,-1):
             if (mario_posY <= self.ladders_thresholds[i]):
-                return i
-        return 0
+                stage = i
+                break;
+
+        if (stage != self.last_stage):
+            self.last_stage = stage
+            if (stage > self.max_stage):
+                self.max_stage = stage
+            self.last_change_stage = time.time()
+        return stage
 
     def _get_moving_entities(self, game_frame):
         moving = []
@@ -262,14 +298,14 @@ class DonkeyKongAPI(GameAPI):
 
     def _get_orientation(self, location):
         level = self._get_level(location[0])
-        ladders = self.ladders_positions[level]
-        for ladder in ladders:
-            if (abs(ladder-location[1]) <= self.LADDER_DELTA):
-                couple = (level, ladder)
-                if (couple in self.on_ladders):
-                    extremity = self.on_ladders[couple]
-                    if (location[0] <= extremity[0] and location[0] > extremity[1]):
-                        return 3
+        # ladders = self.ladders_positions[level]
+        # for ladder in ladders:
+        #     if (abs(ladder-location[1]) <= self.LADDER_DELTA):
+        #         couple = (level, ladder)
+        #         if (couple in self.on_ladders):
+        #             extremity = self.on_ladders[couple]
+        #             if (location[0] <= extremity[0] and location[0] > extremity[1]):
+        #                 return 3
 
         return self.level_direction[level]
 
@@ -387,7 +423,7 @@ class DonkeyKongAPI(GameAPI):
 
         return simplified_frame
 
-    def _multiple_locate(self, sprite=None, game_frame=None, screen_region=None, use_global_location=True):
+    def _multiple_locate(self, sprite=None, game_frame=None, screen_region=None, use_global_location=True, forced=False):
         constellation_of_pixel_images = sprite.generate_constellation_of_pixels_images()
         locations = []
 
@@ -423,6 +459,8 @@ class DonkeyKongAPI(GameAPI):
                         y + constellation_of_pixel_images[i].shape[0],
                         x + constellation_of_pixel_images[i].shape[1]
                     ))
+            if (forced and len(locations) > 0):
+                break
 
         if len(locations) != 0 and screen_region is not None and use_global_location:
             for i in range(0,len(locations)):
@@ -447,38 +485,169 @@ class DonkeyKongAPI(GameAPI):
                 epurated.append(locations[i])
         return epurated
 
-    def get_position_dead(self, game_frame):
-        location = self.sprite_locator.locate(sprite=self.death_sprite, game_frame=game_frame)
-        pos = [0,0]
-        if(location != None):
-            level = self._get_level(location[0])
-            pos[1] = 1000 * level
+    def get_score_value(self, location):
+        values = [-1000,-1000,-1000,-1000,-1000]
+        if (location != None):
+            values[0] = self._get_level(location[0])
             ladders = self._get_ladders(location[0])
-            minimum_distance = abs(ladders[0]-((location[3]+location[1])/2))
+            minimum_distance = int(abs(ladders[0]-location[3]))
             for ladder in ladders :
-                distance = abs(ladder-((location[3]+location[1])/2))
+                if (abs(ladder - location[1]) <= self.LADDER_DELTA):
+                    distance = 0
+                elif (ladder < location[1]) :
+                    #distance = abs(ladder-((location[3]+location[1])/2))
+                    distance = int(abs(ladder-location[1]))
+                else:
+                    distance = int(abs(ladder-location[3]))
+                #distance = abs(ladder-((location[3]+location[1])/2))
                 if (distance < minimum_distance):
                     minimum_distance = distance
 
-            pos[0] = minimum_distance
+            values[1] = -1 * minimum_distance
+            values[2] = self.max_stage
+            values[3] = self.useless_actions
+            if (self._is_on_ladder(values[0],location)):
+                values[4] = 1
+            else:
+                values[4] = 0
 
+        self.last_change_stage = 0
+        self.last_stage = 0
+        self.max_stage = 0
+        self.useless_actions = 0
+
+        return values
+
+    def _is_on_ladder(self, level, location):
+        ladders = self.ladders_positions[level]
+        for ladder in ladders:
+            if (abs(ladder-location[1]) <= self.LADDER_DELTA):
+                couple = (level, ladder)
+                if (couple in self.on_ladders):
+                    extremity = self.on_ladders[couple]
+                    if (location[0] <= extremity[0] and location[0] > extremity[1]):
+                        return True
+        return False
+
+    def get_death_location(self, game_frame):
+        return self.sprite_locator.locate(sprite=self.death_sprite, game_frame=game_frame)
+
+    def get_position_dead(self, game_frame):
+        location = self.sprite_locator.locate(sprite=self.death_sprite, game_frame=game_frame)
+        pos = [-1000,-1000,-1000, -1000]
+        if(location != None):
+            level = self._get_level(location[0])
+            pos[0] = time.time()-self.last_change_stage
+            pos[1] = level
+
+            # pos[1] = 1000 * level
+            ladders = self._get_ladders(location[0])
+            
+            minimum_distance = int(abs(ladders[0]-location[3]))
+            for ladder in ladders :
+                if (abs(ladder - location[1]) <= self.LADDER_DELTA):
+                    distance = 0
+                elif (ladder < location[1]) :
+                    #distance = abs(ladder-((location[3]+location[1])/2))
+                    distance = int(abs(ladder-location[1]))
+                else:
+                    distance = int(abs(ladder-location[3]))
+                #distance = abs(ladder-((location[3]+location[1])/2))
+                if (distance < minimum_distance):
+                    minimum_distance = distance
+
+            # pos[0] = minimum_distance
+            # # print((time.time()-self.last_change_stage))
+
+            pos[2] = 1 - (minimum_distance / self.level_distances[level])
+            pos[3] = 100 * self.max_stage  - 2.5 * self.useless_actions
+            self.last_change_stage = 0
+            self.last_stage = 0
+            self.max_stage = 0
+            self.useless_actions = 0
+
+        # if (location != None and self._get_orientation(location) == 3):
+        #     pos[1] = pos[1] + 500
         return pos
 
     def get_final_position(self, location):
-        pos = [0,0]
+        pos = [-1000,-1000,-1000, -1000]
         if(location != None):
             level = self._get_level(location[0])
-            pos[1] = 1000 * level
+            pos[0] = time.time()-self.last_change_stage
+            pos[1] = level
+
+            # pos[1] = 1000 * level
             ladders = self._get_ladders(location[0])
-            minimum_distance = abs(ladders[0]-((location[3]+location[1])/2))
+            
+            minimum_distance = int(abs(ladders[0]-location[3]))
             for ladder in ladders :
-                distance = abs(ladder-((location[3]+location[1])/2))
+                if (abs(ladder - location[1]) <= self.LADDER_DELTA):
+                    distance = 0
+                elif (ladder < location[1]) :
+                    #distance = abs(ladder-((location[3]+location[1])/2))
+                    distance = int(abs(ladder-location[1]))
+                else:
+                    distance = int(abs(ladder-location[3]))
+                #distance = abs(ladder-((location[3]+location[1])/2))
                 if (distance < minimum_distance):
                     minimum_distance = distance
 
-            pos[0] = minimum_distance
+            # pos[0] = minimum_distance
+            # # print((time.time()-self.last_change_stage))
+
+            pos[2] = 1 - (minimum_distance / self.level_distances[level])
+            pos[3] = 100 * self.max_stage - 2.5 * self.useless_actions
+            self.last_change_stage = 0
+            self.last_stage = 0
+            self.max_stage = 0
+            self.useless_actions = 0
+        
+        # pos = [-1000,-1000]
+        # if(location != None):
+        #     level = self._get_level(location[0])
+        #     pos[1] = 1000 * level
+        #     ladders = self._get_ladders(location[0])
+        #     #minimum_distance = abs(ladders[0]-((location[3]+location[1])/2))
+        #     minimum_distance = int(abs(ladders[0]-location[3]))
+        #     for ladder in ladders :
+        #         if (abs(ladder - location[1]) <= self.LADDER_DELTA):
+        #             distance = 0
+        #         elif (ladder < location[1]) :
+        #             #distance = abs(ladder-((location[3]+location[1])/2))
+        #             distance = int(abs(ladder-location[1]))
+        #         else:
+        #             distance = int(abs(ladder-location[3]))
+        #         #distance = abs(ladder-((location[3]+location[1])/2))
+        #         if (distance < minimum_distance):
+        #             minimum_distance = distance
+
+        #     pos[0] = minimum_distance
+        #     print((time.time()-self.last_change_stage))
+        #     self.last_change_stage = 0
+        #     self.last_stage = 0
+
+        # if (location != None and self._get_orientation(location) == 3):
+        #     pos[1] = pos[1] + 500
 
         return pos
+
+    def analyze_action(self, inputs, outputs):
+        ### FILTRE LES JUMPS INUTILES
+        # N = self.n_WIDTH * 2 + 1
+        # row = self.n_HEIGHT * N
+
+        # has_obstacle = False
+
+        # for i in range(N):
+        #     if(inputs[row+i] == self.MOVING_ENTITY):
+        #         has_obstacle = True
+        #         break;
+
+        # if (not has_obstacle and outputs[len(outputs)-1] == 1):
+        #     self.useless_actions = self.useless_actions + 1
+        if (outputs[len(outputs)-1] == 1):
+            self.useless_actions = self.useless_actions + 1
 
 
     """
