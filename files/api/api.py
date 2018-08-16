@@ -33,9 +33,6 @@ class DonkeyKongAPI(GameAPI):
         self.MOVING_ENTITY = 2
         self.LADDER = 3
         self.LADDER_DELTA = 18
-        self.ROLLING_BARREL = 2
-        self.FALLING_BARREL = 3
-        self.FLAMMY = 4
 
         self.LEVEL_WIN_HEIGHT = 32
 
@@ -59,14 +56,6 @@ class DonkeyKongAPI(GameAPI):
         self.on_ladders[(3,194)] = [196, 144]
         self.on_ladders[(4,452)] = [133, 88]
         self.on_ladders[(5,324)] = [81, 32]
-
-        self.level_distances = dict()
-        self.level_distances[0] = 453
-        self.level_distances[1] = 453-249
-        self.level_distances[2] = 452-102
-        self.level_distances[3] = 452-104
-        self.level_distances[4] = 452-104
-        self.level_distances[5] = 452-324
 
         self.last_stage = 0
         self.max_stage = 0
@@ -127,57 +116,12 @@ class DonkeyKongAPI(GameAPI):
         image = io.imread('./plugins/SerpentDonkeyKongGamePlugin/files/data/sprites/sprite_main_menu_splash_screen.png')
         self.splash_screen = Sprite("SPLASH", image_data=image[...,np.newaxis])
 
-        # Moving entities
-        path = './plugins/SerpentDonkeyKongGamePlugin/files/data/sprites/falling_barrel_{}.png'
-        image = io.imread(path.format(1))
-        self.moving = Sprite("MOVING", image_data=image[...,np.newaxis])
-        for i in range(2,3):
-            image = io.imread(path.format(i))
-            self.moving.append_image_data(image[...,np.newaxis])
-        path = './plugins/SerpentDonkeyKongGamePlugin/files/data/sprites/rolling_barrel_{}.png'
-        for i in range(1,5):
-            image = io.imread(path.format(i))
-            self.moving.append_image_data(image[...,np.newaxis])
-        path = './plugins/SerpentDonkeyKongGamePlugin/files/data/sprites/flammy_{}.png'
-        for i in range(1,5):
-            image = io.imread(path.format(i))
-            self.moving.append_image_data(image[...,np.newaxis])
-
-
-
-
-    def _analyze_frame(self, game_frame):
-        has_mario = False
-        if (self.navigationGameFSM.current == "black_screen"):
-            location = self.sprite_locator.locate(sprite=self.death_sprite, game_frame=game_frame)
-            if (location == None):
-                location = self.sprite_locator.locate(sprite=self.mario_sprite, game_frame=game_frame)
-                if (location != None):
-                    self.navigationGameFSM.play()
-                    has_mario = True
-        elif (self.navigationGameFSM.current == "playing"):
-            location = self.sprite_locator.locate(sprite=self.mario_sprite, game_frame=game_frame)
-            if (location != None):
-                has_mario = True
-            location = self.sprite_locator.locate(sprite=self.death_sprite, game_frame=game_frame)
-            if (location != None):
-                self.navigationGameFSM.die()
-                has_mario = False
-        elif (self.navigationGameFSM.current == "lost"):
-            location = self.sprite_locator.locate(sprite=self.splash_screen, game_frame=game_frame)
-            if (location != None):
-                self.navigationGameFSM.run()
-
-        return has_mario
-
     def analyze_frame(self, game_frame):
         locations = [None, None]
         if (self.navigationGameFSM.current == "black_screen"):
-            locations[1] = self.sprite_locator.locate(sprite=self.death_sprite, game_frame=game_frame)
-            if (locations[1] == None):
-                locations[0] = self.sprite_locator.locate(sprite=self.mario_sprite, game_frame=game_frame)
-                if (locations[0] != None):
-                    self.navigationGameFSM.play()
+            locations[0] = self.sprite_locator.locate(sprite=self.mario_sprite, game_frame=game_frame)
+            if (locations[0] != None):
+                self.navigationGameFSM.play()
         elif (self.navigationGameFSM.current == "playing"):
             loc = self._multiple_locate(sprite=self.mario_sprite, game_frame=game_frame, forced=True)
             if(len(loc) != 0):
@@ -188,8 +132,6 @@ class DonkeyKongAPI(GameAPI):
                 loc = self._multiple_locate(sprite=self.death_sprite, game_frame=game_frame, forced=True)
                 if(len(loc) != 0):
                     locations[1] = loc[0]
-            # locations[0] = self.sprite_locator.locate(sprite=self.mario_sprite, game_frame=game_frame)
-            # locations[1] = self.sprite_locator.locate(sprite=self.death_sprite, game_frame=game_frame)
 
             if (locations[0] != None):
                 has_mario = True
@@ -204,60 +146,11 @@ class DonkeyKongAPI(GameAPI):
             if (self.last_change_stage == 0):
                 self.last_change_stage = time.time()
 
-        elif (self.navigationGameFSM.current == "lost" or self.navigationGameFSM.current == "has_won"):
-            location = self.sprite_locator.locate(sprite=self.splash_screen, game_frame=game_frame)
-            if (location != None):
-                self.navigationGameFSM.run()
-
         return locations
-
-    def has_won(self):
-        return self.navigationGameFSM.current == "has_won"
-
-    def get_distance_vector(self, game_frame):
-        mario_location = self.sprite_locator.locate(sprite=self.mario_sprite, game_frame=game_frame)
-        if (mario_location != None):
-            distances = self._distance_to_moving_entities(mario_location, game_frame)
-            distances = np.concatenate((distances, self._distance_ladders(mario_location[1], mario_location[0])))
-            return distances
-
-    def _distance_to_moving_entities(self, mario_location, game_frame):
-        moving_entities = self._get_moving_entities(game_frame)
-        distances = np.zeros(20)
-        cpt = 0
-
-        for entity in moving_entities:
-            if (cpt < 20):
-                entity_posX = (entity[1] + entity[3])/2
-                mario_posX = (mario_location[1] + mario_location[3])/2
-                distances[cpt] = abs(entity_posX - mario_posX)
-                entity_posY = (entity[0] + entity[2])/2
-                mario_posY = (mario_location[0] + mario_location[2])/2
-                distances[cpt+1] = abs(entity_posY - mario_posY)
-                cpt = cpt + 2
-
-        for i in range(cpt, 20):
-            distances[i] = 10000
-
-        return distances
-
-    def _distance_ladders(self, mario_posX, mario_posY):
-        distances = np.zeros(2)
-        ladders = self._get_ladders(mario_posY)
-        cpt = 0
-        for ladder in ladders:
-            distances[cpt] = abs(mario_posX-ladder)
-            cpt = cpt + 1
-
-        return distances
 
     def _get_ladders(self, mario_posY):
         level = self._get_level(mario_posY)
         return self.ladders_positions[level]
-        # for i in range(5,-1,-1):
-        #     if (mario_posY <= self.ladders_thresholds[i]):
-        #         return self.ladders_positions[i]
-        # return self.ladders_positions[0]
 
     def _get_level(self, mario_posY):
         stage = 0
@@ -298,15 +191,6 @@ class DonkeyKongAPI(GameAPI):
 
     def _get_orientation(self, location):
         level = self._get_level(location[0])
-        # ladders = self.ladders_positions[level]
-        # for ladder in ladders:
-        #     if (abs(ladder-location[1]) <= self.LADDER_DELTA):
-        #         couple = (level, ladder)
-        #         if (couple in self.on_ladders):
-        #             extremity = self.on_ladders[couple]
-        #             if (location[0] <= extremity[0] and location[0] > extremity[1]):
-        #                 return 3
-
         return self.level_direction[level]
 
 
@@ -358,70 +242,6 @@ class DonkeyKongAPI(GameAPI):
             units_array[int(posY/self.HEIGHT)][int(posX/self.WIDTH)] = self.MOVING_ENTITY
 
         return units_array
-
-    def get_mario_frame(self, game_frame):
-        location = self.sprite_locator.locate(sprite=self.mario_sprite, game_frame=game_frame)
-        reduced_frame = None
-        units_array = None
-        if (location != None):
-            temp = game_frame.frame[location[0]-self.HEIGHT*self.n_HEIGHT:location[2]+self.HEIGHT*self.n_HEIGHT,location[1]-self.WIDTH*self.n_WIDTH:location[3]+self.WIDTH*self.n_WIDTH]
-            reduced_frame = GameFrame(temp)
-            units_array = self._reduction(reduced_frame)
-
-        return (reduced_frame, units_array)
-
-    def _reduction(self, game_frame):
-        simplified_frame = self._simplify_frame(game_frame)
-
-        units_array = np.zeros((1+2*self.n_HEIGHT, 1+2*self.n_WIDTH))
-        units_array[self.n_HEIGHT][self.n_WIDTH] = self.MARIO
-
-        x, y, z = game_frame.frame.shape
-        height = int(x/self.HEIGHT)
-        widht = int(y/self.WIDTH)
-
-        for i in range(0, height-1):
-            for j in range(0, widht-1):
-                case = simplified_frame[i*self.HEIGHT + int(self.HEIGHT/2)-1][j*self.WIDTH + int(self.WIDTH/2)-1]
-                if (case == self.FALLING_BARREL):
-                    units_array[i][j] = self.FALLING_BARREL
-                elif (case == self.ROLLING_BARREL):
-                    units_array[i][j] = self.ROLLING_BARREL
-                elif (case == self.FLAMMY):
-                    units_array[i][j] = self.FLAMMY
-
-        return units_array
-
-
-    def _simplify_frame(self, game_frame):
-        x, y, z = game_frame.frame.shape
-        simplified_frame = np.zeros((x, y))
-
-        location = self.sprite_locator.locate(sprite=self.mario_sprite, game_frame=game_frame)
-        if(location != None):
-            for i in range(location[0], location[2]):
-                for j in range(location[1], location[3]):
-                    simplified_frame[i][j] = 1
-
-            locations = self._multiple_locate(sprite=self.rolling_barrel_sprite, game_frame=game_frame)
-            for location in locations:
-                for i in range(location[0], location[2]):
-                    for j in range(location[1], location[3]):
-                        simplified_frame[i][j] = self.ROLLING_BARREL
-
-            locations = self._multiple_locate(sprite=self.falling_barrel_sprite, game_frame=game_frame)
-            for location in locations:
-                for i in range(location[0], location[2]):
-                    for j in range(location[1], location[3]):
-                        simplified_frame[i][j] = self.FALLING_BARREL
-
-            locations = self._multiple_locate(sprite=self.flammy_sprite, game_frame=game_frame)
-            for location in locations:
-                for i in range(location[0], location[2]):
-                    for j in range(location[1], location[3]):
-                        simplified_frame[i][j] = self.FLAMMY
-
-        return simplified_frame
 
     def _multiple_locate(self, sprite=None, game_frame=None, screen_region=None, use_global_location=True, forced=False):
         constellation_of_pixel_images = sprite.generate_constellation_of_pixels_images()
@@ -495,11 +315,9 @@ class DonkeyKongAPI(GameAPI):
                 if (abs(ladder - location[1]) <= self.LADDER_DELTA):
                     distance = 0
                 elif (ladder < location[1]) :
-                    #distance = abs(ladder-((location[3]+location[1])/2))
                     distance = int(abs(ladder-location[1]))
                 else:
                     distance = int(abs(ladder-location[3]))
-                #distance = abs(ladder-((location[3]+location[1])/2))
                 if (distance < minimum_distance):
                     minimum_distance = distance
 
@@ -531,106 +349,6 @@ class DonkeyKongAPI(GameAPI):
 
     def get_death_location(self, game_frame):
         return self.sprite_locator.locate(sprite=self.death_sprite, game_frame=game_frame)
-
-    def get_position_dead(self, game_frame):
-        location = self.sprite_locator.locate(sprite=self.death_sprite, game_frame=game_frame)
-        pos = [-1000,-1000,-1000, -1000]
-        if(location != None):
-            level = self._get_level(location[0])
-            pos[0] = time.time()-self.last_change_stage
-            pos[1] = level
-
-            # pos[1] = 1000 * level
-            ladders = self._get_ladders(location[0])
-            
-            minimum_distance = int(abs(ladders[0]-location[3]))
-            for ladder in ladders :
-                if (abs(ladder - location[1]) <= self.LADDER_DELTA):
-                    distance = 0
-                elif (ladder < location[1]) :
-                    #distance = abs(ladder-((location[3]+location[1])/2))
-                    distance = int(abs(ladder-location[1]))
-                else:
-                    distance = int(abs(ladder-location[3]))
-                #distance = abs(ladder-((location[3]+location[1])/2))
-                if (distance < minimum_distance):
-                    minimum_distance = distance
-
-            # pos[0] = minimum_distance
-            # # print((time.time()-self.last_change_stage))
-
-            pos[2] = 1 - (minimum_distance / self.level_distances[level])
-            pos[3] = 100 * self.max_stage  - 2.5 * self.useless_actions
-            self.last_change_stage = 0
-            self.last_stage = 0
-            self.max_stage = 0
-            self.useless_actions = 0
-
-        # if (location != None and self._get_orientation(location) == 3):
-        #     pos[1] = pos[1] + 500
-        return pos
-
-    def get_final_position(self, location):
-        pos = [-1000,-1000,-1000, -1000]
-        if(location != None):
-            level = self._get_level(location[0])
-            pos[0] = time.time()-self.last_change_stage
-            pos[1] = level
-
-            # pos[1] = 1000 * level
-            ladders = self._get_ladders(location[0])
-            
-            minimum_distance = int(abs(ladders[0]-location[3]))
-            for ladder in ladders :
-                if (abs(ladder - location[1]) <= self.LADDER_DELTA):
-                    distance = 0
-                elif (ladder < location[1]) :
-                    #distance = abs(ladder-((location[3]+location[1])/2))
-                    distance = int(abs(ladder-location[1]))
-                else:
-                    distance = int(abs(ladder-location[3]))
-                #distance = abs(ladder-((location[3]+location[1])/2))
-                if (distance < minimum_distance):
-                    minimum_distance = distance
-
-            # pos[0] = minimum_distance
-            # # print((time.time()-self.last_change_stage))
-
-            pos[2] = 1 - (minimum_distance / self.level_distances[level])
-            pos[3] = 100 * self.max_stage - 2.5 * self.useless_actions
-            self.last_change_stage = 0
-            self.last_stage = 0
-            self.max_stage = 0
-            self.useless_actions = 0
-        
-        # pos = [-1000,-1000]
-        # if(location != None):
-        #     level = self._get_level(location[0])
-        #     pos[1] = 1000 * level
-        #     ladders = self._get_ladders(location[0])
-        #     #minimum_distance = abs(ladders[0]-((location[3]+location[1])/2))
-        #     minimum_distance = int(abs(ladders[0]-location[3]))
-        #     for ladder in ladders :
-        #         if (abs(ladder - location[1]) <= self.LADDER_DELTA):
-        #             distance = 0
-        #         elif (ladder < location[1]) :
-        #             #distance = abs(ladder-((location[3]+location[1])/2))
-        #             distance = int(abs(ladder-location[1]))
-        #         else:
-        #             distance = int(abs(ladder-location[3]))
-        #         #distance = abs(ladder-((location[3]+location[1])/2))
-        #         if (distance < minimum_distance):
-        #             minimum_distance = distance
-
-        #     pos[0] = minimum_distance
-        #     print((time.time()-self.last_change_stage))
-        #     self.last_change_stage = 0
-        #     self.last_stage = 0
-
-        # if (location != None and self._get_orientation(location) == 3):
-        #     pos[1] = pos[1] + 500
-
-        return pos
 
     def analyze_action(self, inputs, outputs):
         ### FILTRE LES JUMPS INUTILES
@@ -666,19 +384,17 @@ class DonkeyKongAPI(GameAPI):
     def is_dead(self):
         return self.navigationGameFSM.current == "dead"
 
+    def has_won(self):
+        return self.navigationGameFSM.current == "has_won"
+
     def run(self):
         self.navigationGameFSM.run()
 
     def next(self):
         self.navigationGameFSM.next()
 
-    def replay(self):
-        self.navigationGameFSM.replay()
-
     def win(self):
         self.navigationGameFSM.win()
-
-
 
     class MyAPINamespace:
 
